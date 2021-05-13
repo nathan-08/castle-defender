@@ -66,12 +66,12 @@ SDL_Texture* create_texture(const char* path) {
 }
 
 void App::mainloop() {
+  bool playerMoved(false);
   int goldCount(0);
   int level(0);
   bool paused(false);
   bool gameRunning(false);
-  TileMatrix tileMatrix("src/a.map");
-  cout << tileMatrix.width() << " " << tileMatrix.height() << endl;
+  TileMatrix tileMatrix("src/test.map");
   Graph graph(tileMatrix); // <-- graph.dijkstra(vertex, vertex)
                            // returns pair<int distance, list<vertex> path> 
   SDL_Texture* dwarf_texture = create_texture("../assets/dwarf.bmp");
@@ -185,8 +185,8 @@ void App::mainloop() {
     paused = false;
     npcs.clear();
     items.clear();
-    Mix_PlayChannel(2, soundFx["song_a"], -1);
-    player.setTilePosition(8,6);
+    //Mix_PlayChannel(2, soundFx["song_a"], -1);
+    player.setTilePosition(0,0);
     player.actions.setAll(false);
     player.frameCount=0;
     player.dirMoving=DOWN;
@@ -195,6 +195,7 @@ void App::mainloop() {
   };
   //startGame();
   while (!quit) {
+    /*
     if (npcs.empty()) {
       ++level;
       while (npcs.size() < level) {
@@ -210,6 +211,7 @@ void App::mainloop() {
         makeGoblin(tileX, tileY);
       }
     }
+    */
     while (SDL_PollEvent(&e) != 0) {
       if (e.type == SDL_QUIT) {
         quit = true;
@@ -284,50 +286,110 @@ void App::mainloop() {
               Mix_PlayChannel(0, soundFx["gold"], 0);
               break;
           }
-
         }
       }
+      playerMoved=false;
       keystate = SDL_GetKeyboardState(nullptr);
       if (keystate[SDL_SCANCODE_W]) {
-        keystate[SDL_SCANCODE_RSHIFT] ? player.face(UP) : player.move(UP);
+        if (keystate[SDL_SCANCODE_RSHIFT]) {
+          player.face(UP);
+        } else {
+          if (player.move(UP)) playerMoved=true;
+        }
       }
       if (keystate[SDL_SCANCODE_A]) {
-        keystate[SDL_SCANCODE_RSHIFT] ? player.face(LEFT) : player.move(LEFT);
+        if (keystate[SDL_SCANCODE_RSHIFT]) {
+          player.face(LEFT);
+        } else {
+          if (player.move(LEFT)) playerMoved=true;
+        }
       }
       if (keystate[SDL_SCANCODE_S]) {
-        keystate[SDL_SCANCODE_RSHIFT] ? player.face(DOWN) : player.move(DOWN);
+        if (keystate[SDL_SCANCODE_RSHIFT]) {
+          player.face(DOWN);
+        } else {
+          if (player.move(DOWN)) playerMoved=true;
+        }
       }
       if (keystate[SDL_SCANCODE_D]) {
-        keystate[SDL_SCANCODE_RSHIFT] ? player.face(RIGHT) : player.move(RIGHT);
+        if (keystate[SDL_SCANCODE_RSHIFT]) {
+          player.face(RIGHT);
+        } else {
+          if (player.move(RIGHT)) playerMoved=true;
+        }
       }
       if (keystate[SDL_SCANCODE_RSHIFT]) {
         player.block();
       }
       else player.actions.blocking = false;
     }
+    if (playerMoved)
+      tileMatrix.updateVisibilityMap(vertex(player.tileX,player.tileY));
     SDL_SetRenderDrawColor(gRenderer,0,0,0,0xff);
     SDL_RenderClear(gRenderer);
 
     // render player and map
     for (int h=0; h < tileMatrix.height(); ++h) {
       for (int w=0; w < tileMatrix.width(); ++w) {
-        int tilecode = tileMatrix.at(vertex(w,h));
-        switch (tilecode) {
-          case 0:
-            drawGrass(w*8,h*8);
-            break;
-          case 3:
-            drawGrassAlt(w*8,h*8);
-            break;
-          case 1:
-            drawStone(w*8,h*8);
-            break;
-          case 2:
-            drawFloor(w*8,h*8);
-            break;
+        if (!tileMatrix.isVisibleTile(vertex(w,h))) {
+          SDL_SetRenderDrawColor(gRenderer,0,0,0,0xff);
+          SDL_Rect dest{w*8,h*8,8,8};
+          SDL_RenderFillRect(gRenderer, &dest);
+        }
+        else {
+          int tilecode = tileMatrix.at(vertex(w,h));
+          switch (tilecode) {
+            case 0:
+              drawGrass(w*8,h*8);
+              break;
+            case 3:
+              drawGrassAlt(w*8,h*8);
+              break;
+            case 1:
+              drawStone(w*8,h*8);
+              break;
+            case 2:
+              drawFloor(w*8,h*8);
+              break;
+          }
         }
       }
     }
+    /*
+    list<vertex> line = tileMatrix.bresenham(
+      vertex(player.tileX, player.tileY),
+      vertex(19,17)
+      );
+    for (const auto& vrt: line) {
+      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
+      SDL_RenderFillRect(gRenderer,&src);
+    }
+    line = tileMatrix.bresenham(
+      vertex(player.tileX, player.tileY),
+      vertex(19,0)
+      );
+    for (const auto& vrt: line) {
+      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
+      SDL_RenderFillRect(gRenderer,&src);
+    }
+    line = tileMatrix.bresenham(
+      vertex(player.tileX, player.tileY),
+      vertex(0,0)
+      );
+    for (const auto& vrt: line) {
+      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
+      SDL_RenderFillRect(gRenderer,&src);
+    }
+    line = tileMatrix.bresenham(
+      vertex(player.tileX, player.tileY),
+      vertex(0, 17)
+      );
+    for (const auto& vrt: line) {
+      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
+      SDL_RenderFillRect(gRenderer,&src);
+    }
+    */
+    //
     textArea.drawRect();
     oss.str(string());
     oss << "level: " << level << " gold: " << goldCount << endl;
