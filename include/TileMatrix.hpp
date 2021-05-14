@@ -13,6 +13,7 @@ public:
   std::vector<std::vector<int>> data;
   std::map<vertex, bool> shadowMap;
   TileMatrix(const std::string& filename);
+
   int inline width() const { return data.at(0).size(); }
   int inline height() const { return data.size(); }
   void print();

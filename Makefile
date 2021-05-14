@@ -2,8 +2,8 @@ INCLUDE := -I/Library/Frameworks/SDL2.framework/Headers -I/Library/Frameworks/SD
 FW := -framework SDL2 -framework SDL2_ttf -framework SDL2_mixer -F/Library/Frameworks
 COMPILER := g++ -std=c++17 -Wall
 
-main: main.o app.o init.o agent.o textManager.o tileMatrix.o graph.o
-	$(COMPILER) -o main main.o app.o init.o agent.o textManager.o  tileMatrix.o graph.o $(FW) 
+main: main.o app.o init.o agent.o textManager.o tileMatrix.o graph.o sprite.o
+	$(COMPILER) -o main main.o app.o init.o agent.o sprite.o textManager.o  tileMatrix.o graph.o $(FW) 
 
 main.o: main.cpp
 	$(COMPILER) -c $< -I include
@@ -14,7 +14,7 @@ app.o: app.cpp app.hpp direction.hpp TextManager.hpp agent.hpp Graph.hpp TileMat
 init.o: init.cpp init.hpp const.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
-agent.o: agent.cpp agent.hpp direction.hpp
+agent.o: agent.cpp agent.hpp direction.hpp sprite.hpp vertex.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 textManager.o: TextManager.cpp TextManager.hpp
@@ -24,6 +24,9 @@ tileMatrix.o: TileMatrix.cpp TileMatrix.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 graph.o: graph.cpp Graph.hpp priorityQueue.hpp TileMatrix.hpp
+	$(COMPILER) -c $< $(INCLUDE)
+
+sprite.o: sprite.cpp sprite.hpp vertex.hpp direction.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 vpath %.cpp src

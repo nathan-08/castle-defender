@@ -1,5 +1,3 @@
-// TODO: handle player death, pause function
-// 
 #include <iostream>
 #include <SDL.h>
 #include <SDL_ttf.h>
@@ -49,6 +47,16 @@ void App::close() {
   }
 }
 
+class TextureContainer {
+public:
+  map<string, SDL_Texture*> data;
+  ~TextureContainer() {
+    for (const auto& p: data) {
+      SDL_DestroyTexture(p.second);
+    }
+  }
+};
+
 SDL_Texture* create_texture(const char* path) {
   SDL_Surface* surface = SDL_LoadBMP(path);
   if (!surface) {
@@ -66,87 +74,45 @@ SDL_Texture* create_texture(const char* path) {
 }
 
 void App::mainloop() {
-  bool playerMoved(false);
-  int goldCount(0);
-  int level(0);
-  bool paused(false);
-  bool gameRunning(false);
+  int actionCooldown(0);
+  bool gameRunning(true);
   TileMatrix tileMatrix("src/test.map");
   Graph graph(tileMatrix); // <-- graph.dijkstra(vertex, vertex)
                            // returns pair<int distance, list<vertex> path> 
-  SDL_Texture* dwarf_texture = create_texture("../assets/dwarf.bmp");
-  SDL_Texture* goblin_texture = create_texture("../assets/goblin.bmp");
-  SDL_Texture* items_texture = create_texture("../assets/items.bmp");
-  SDL_Texture* stone = create_texture("../assets/stone.bmp");
-  auto drawStone = [&stone](int x, int y){
+  TextureContainer textureContainer;
+  textureContainer.data.emplace("dwarf", create_texture("../assets/dwarf.bmp"));
+  textureContainer.data.emplace("goblin", create_texture("../assets/goblin.bmp"));
+  textureContainer.data.emplace("items", create_texture("../assets/items.bmp"));
+  textureContainer.data.emplace("stone", create_texture("../assets/stone.bmp"));
+  auto drawStone = [&textureContainer](int x, int y){
     SDL_Rect dest{x,y,8,8};
     SDL_Rect src{0,0,8,8};
-    SDL_RenderCopy(gRenderer, stone, &src, &dest);
+    SDL_RenderCopy(gRenderer, textureContainer.data["stone"], &src, &dest);
   };
-  auto drawGrass = [&stone](int x, int y){
+  auto drawGrass = [&textureContainer](int x, int y){
     SDL_Rect dest{x,y,8,8};
     SDL_Rect src{8,0,8,8};
-    SDL_RenderCopy(gRenderer, stone, &src, &dest);
+    SDL_RenderCopy(gRenderer, textureContainer.data["stone"], &src, &dest);
   };
-  auto drawGrassAlt = [&stone](int x, int y){
+  auto drawGrassAlt = [&textureContainer](int x, int y){
     SDL_Rect dest{x,y,8,8};
     SDL_Rect src{8,8,8,8};
-    SDL_RenderCopy(gRenderer, stone, &src, &dest);
+    SDL_RenderCopy(gRenderer, textureContainer.data["stone"], &src, &dest);
   };
-  auto drawFloor = [&stone](int x, int y){
+  auto drawFloor = [&textureContainer](int x, int y){
     SDL_Rect dest{x,y,8,8};
     SDL_Rect src{16,0,8,8};
-    SDL_RenderCopy(gRenderer, stone, &src, &dest);
+    SDL_RenderCopy(gRenderer, textureContainer.data["stone"], &src, &dest);
   };
-  auto drawHeart = [&items_texture](int x, int y){
+  auto drawHeart = [&textureContainer](int x, int y){
     SDL_Rect src{0,0,8,8};
     SDL_Rect dest{x,y,8,8};
-    SDL_RenderCopy(gRenderer, items_texture, &src, &dest);
+    SDL_RenderCopy(gRenderer, textureContainer.data["items"], &src, &dest);
   };
-  auto drawGoldPiece = [&items_texture](int x, int y){
+  auto drawGoldPiece = [&textureContainer](int x, int y){
     SDL_Rect src{8,0,8,8};
     SDL_Rect dest{x,y,8,8};
-    SDL_RenderCopy(gRenderer, items_texture, &src, &dest);
-  };
-  vector<Agent> npcs;
-  vector<Item> items;
-  vector<Projectile> projectiles;
-  auto makeSpear = [&projectiles, &items_texture, &tileMatrix](
-    int x, int y, Direction dir){
-    projectiles.emplace_back(SDL_Color{0xff,0,0,0xff},x,y,&tileMatrix,
-      map<Direction, SDL_Rect>{
-          {UP, SDL_Rect{8*2,0,8,8}},
-          {DOWN, SDL_Rect{8*3,0,8,8}},
-          {LEFT, SDL_Rect{8*5,0,8,8}},
-          {RIGHT, SDL_Rect{8*4,0,8,8}}
-      }, items_texture, dir);
-  };
-  auto makeHeart = [&items, &items_texture, &tileMatrix](int x, int y){
-    items.emplace_back(SDL_Color{0xff,0,0,0xff},x,y,&tileMatrix,
-    map<Direction, SDL_Rect>{
-        {UP, SDL_Rect{0,0,8,8}},
-        {DOWN, SDL_Rect{0,0,8,8}},
-        {LEFT, SDL_Rect{0,0,8,8}},
-        {RIGHT, SDL_Rect{0,0,8,8}}
-    }, items_texture, 0);
-  };
-  auto makeGold = [&items, &items_texture, &tileMatrix](int x, int y){
-    items.emplace_back(SDL_Color{0xff,0,0,0xff},x,y,&tileMatrix,
-    map<Direction, SDL_Rect>{
-        {UP, SDL_Rect{8,0,8,8}},
-        {DOWN, SDL_Rect{8,0,8,8}},
-        {LEFT, SDL_Rect{8,0,8,8}},
-        {RIGHT, SDL_Rect{8,0,8,8}}
-    }, items_texture, 1);
-  };
-  auto makeGoblin = [&npcs, &goblin_texture, &tileMatrix](int x, int y){
-    npcs.emplace_back(SDL_Color{0xff,0,0,0xff},x,y,&tileMatrix,
-    map<Direction, SDL_Rect>{
-        {UP, SDL_Rect{0,0,8,8}},
-        {DOWN, SDL_Rect{16,0,8,8}},
-        {LEFT, SDL_Rect{32,0,8,8}},
-        {RIGHT, SDL_Rect{48,0,8,8}}
-    }, goblin_texture);
+    SDL_RenderCopy(gRenderer, textureContainer.data["items"], &src, &dest);
   };
   soundFx["die"] = Mix_LoadWAV("../assets/audio/die.wav");
   soundFx["slash"] = Mix_LoadWAV("../assets/audio/slash.wav");
@@ -157,178 +123,64 @@ void App::mainloop() {
   soundFx["song_b"] =Mix_LoadWAV("../assets/audio/song_b.wav");
   TextManager::GlyphCache glyphcache(gRenderer, gFont);
   TextManager::TextArea textArea(gRenderer, 0, 18*8, 20*8, 10);
-  TextManager::TextArea messageTextArea(gRenderer, 0, 8*3, 20*8, 10);
   ostringstream oss;
-
   const Uint8 *keystate = nullptr;
-  map<Direction, SDL_Rect> sword_map{
-    {UP,   SDL_Rect{0,16,8,8}},
-    {DOWN, SDL_Rect{16,16,8,8}},
-    {LEFT, SDL_Rect{32,16,8,8}},
-    {RIGHT,SDL_Rect{48,16,8,8}},
-  };
-  Agent player(
-      SDL_Color{0,0,0,0xff},
-      8,6,
-      &tileMatrix,
-      map<Direction, SDL_Rect>{
+  Player player(
+    "player",
+    0,0,
+    100, 100,
+    Stats(),
+    textureContainer.data["dwarf"], 
+    tileMatrix,
+    map<Direction, SDL_Rect>{
       {UP,    SDL_Rect{0,0,8,8}},
       {DOWN,  SDL_Rect{16,0,8,8}},
       {LEFT,  SDL_Rect{32,0,8,8}},
       {RIGHT, SDL_Rect{48,0,8,8}}
-      }, dwarf_texture, sword_map);
-  bool quit = false;
+  });
   SDL_Event e;
-  auto startGame = [&player, &level, &gameRunning, &paused, &npcs, &items](){
-    level = 0;
-    gameRunning = true;
-    paused = false;
-    npcs.clear();
-    items.clear();
-    //Mix_PlayChannel(2, soundFx["song_a"], -1);
-    player.setTilePosition(0,0);
-    player.actions.setAll(false);
-    player.frameCount=0;
-    player.dirMoving=DOWN;
-    player.dirFacing=DOWN;
-    player.health = 3;
-  };
-  //startGame();
-  while (!quit) {
-    /*
-    if (npcs.empty()) {
-      ++level;
-      while (npcs.size() < level) {
-        int tileX, tileY;
-        if (rand()%2==0){
-          tileX = tileMatrix.width()-1-npcs.size();
-          tileY = tileMatrix.height()-1;
-        }
-        else {
-          tileY = npcs.size();
-          tileX = 0;
-        }
-        makeGoblin(tileX, tileY);
-      }
-    }
-    */
-    while (SDL_PollEvent(&e) != 0) {
-      if (e.type == SDL_QUIT) {
-        quit = true;
-      }
-      else if(e.type == SDL_KEYDOWN && e.key.repeat == 0) {
-        switch(e.key.keysym.sym) {
-          case SDLK_e:
-            if (player.attack()) {
-              Mix_HaltChannel(0);
-              Mix_PlayChannel(0, soundFx["slash"], 0);
-            }
-            break;
-          case SDLK_p:
-            if (!gameRunning) {
-              startGame();
-            }
-            else {
-              paused = !paused;
-              if (paused) Mix_Pause(2);
-              else Mix_Resume(2);
-            }
-            break;
-          case SDLK_1:
-            if (player.ready()) {
-              vertex vert = player.getFacingVertex();
-              if (projectiles.empty())
-                makeSpear(vert.first, vert.second, player.dirFacing);
-            }
-            break;
-        }
-      }
-    }
-    if (!paused && gameRunning) {
-      vertex playerCoords = player.act();
-      // check for damage to player
-      for (int i = 0; i < npcs.size(); ++i) {
-        Agent& npc = npcs.at(i);
-        if (npc.tileX == playerCoords.first && npc.tileY == playerCoords.second) {
-          int result = player.takeDamage(npc);
-          if (result == 0) { // <- check for 0 remaining health
-            // game over condition
-            gameRunning=false;
-            Mix_PlayChannel(2, soundFx["song_b"], 0);
-          }
-          if (result == -1) {
-            // blocked
-            Mix_HaltChannel(0);
-            Mix_PlayChannel(0, soundFx["block"], 0);
-            continue;
-          }
-          npc.moveBack();
-          Mix_HaltChannel(0);
-          Mix_PlayChannel(0, soundFx["slash"], 0);
-        }
-      }
-      for (int i=0; i < items.size(); ++i) {
-        // check for pick up item
-        Item& item = items.at(i);
-        if (item.tileX == playerCoords.first && item.tileY == playerCoords.second) {
-          items.erase(items.begin() + i);
-          switch (item.id) {
-            case 0: // heart
-              if (player.health < 3) ++player.health;
-              // play sound
-              Mix_HaltChannel(0);
-              Mix_PlayChannel(0, soundFx["heart"], 0);
-              break;
-            case 1: // gold
-              ++goldCount;
-              // play sound
-              Mix_HaltChannel(0);
-              Mix_PlayChannel(0, soundFx["gold"], 0);
-              break;
-          }
-        }
-      }
-      playerMoved=false;
-      keystate = SDL_GetKeyboardState(nullptr);
-      if (keystate[SDL_SCANCODE_W]) {
-        if (keystate[SDL_SCANCODE_RSHIFT]) {
-          player.face(UP);
-        } else {
-          if (player.move(UP)) playerMoved=true;
-        }
-      }
-      if (keystate[SDL_SCANCODE_A]) {
-        if (keystate[SDL_SCANCODE_RSHIFT]) {
-          player.face(LEFT);
-        } else {
-          if (player.move(LEFT)) playerMoved=true;
-        }
-      }
-      if (keystate[SDL_SCANCODE_S]) {
-        if (keystate[SDL_SCANCODE_RSHIFT]) {
-          player.face(DOWN);
-        } else {
-          if (player.move(DOWN)) playerMoved=true;
-        }
-      }
-      if (keystate[SDL_SCANCODE_D]) {
-        if (keystate[SDL_SCANCODE_RSHIFT]) {
-          player.face(RIGHT);
-        } else {
-          if (player.move(RIGHT)) playerMoved=true;
-        }
-      }
-      if (keystate[SDL_SCANCODE_RSHIFT]) {
-        player.block();
-      }
-      else player.actions.blocking = false;
-    }
-    if (playerMoved)
-      tileMatrix.updateVisibilityMap(vertex(player.tileX,player.tileY));
-    SDL_SetRenderDrawColor(gRenderer,0,0,0,0xff);
-    SDL_RenderClear(gRenderer);
+  bool quit {false};
 
-    // render player and map
+  while (!quit) {
+    if (actionCooldown == 0) {
+      while (SDL_PollEvent(&e) != 0) {
+        if (e.type == SDL_QUIT) {
+          quit = true;
+        }
+        bool playerMoved {false};
+        if(e.type == SDL_KEYDOWN && e.key.repeat == 0) {
+          switch(e.key.keysym.sym) {
+            case SDLK_w:
+              playerMoved = player.sprite.move(UP);
+              break;
+            case SDLK_a:
+              playerMoved = player.sprite.move(LEFT);
+              break;
+            case SDLK_s:
+              playerMoved = player.sprite.move(DOWN);
+              break;
+            case SDLK_d:
+              playerMoved = player.sprite.move(RIGHT);
+              break;
+            case SDLK_e:
+              break;
+            case SDLK_p:
+              break;
+            case SDLK_1:
+              break;
+          }
+        }
+        if (playerMoved) {
+          actionCooldown = 8;
+          tileMatrix.updateVisibilityMap(player.coords());
+        }
+      }
+    } else {
+      // action cooldown, location updates
+      player.sprite.advanceAnimation(actionCooldown);
+      --actionCooldown;
+    }
+    // render player and map // should be handled by TileMatrix
     for (int h=0; h < tileMatrix.height(); ++h) {
       for (int w=0; w < tileMatrix.width(); ++w) {
         if (!tileMatrix.isVisibleTile(vertex(w,h))) {
@@ -355,150 +207,11 @@ void App::mainloop() {
         }
       }
     }
-    /*
-    list<vertex> line = tileMatrix.bresenham(
-      vertex(player.tileX, player.tileY),
-      vertex(19,17)
-      );
-    for (const auto& vrt: line) {
-      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
-      SDL_RenderFillRect(gRenderer,&src);
-    }
-    line = tileMatrix.bresenham(
-      vertex(player.tileX, player.tileY),
-      vertex(19,0)
-      );
-    for (const auto& vrt: line) {
-      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
-      SDL_RenderFillRect(gRenderer,&src);
-    }
-    line = tileMatrix.bresenham(
-      vertex(player.tileX, player.tileY),
-      vertex(0,0)
-      );
-    for (const auto& vrt: line) {
-      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
-      SDL_RenderFillRect(gRenderer,&src);
-    }
-    line = tileMatrix.bresenham(
-      vertex(player.tileX, player.tileY),
-      vertex(0, 17)
-      );
-    for (const auto& vrt: line) {
-      SDL_Rect src{vrt.first*8,vrt.second*8,8,8};
-      SDL_RenderFillRect(gRenderer,&src);
-    }
-    */
-    //
     textArea.drawRect();
     oss.str(string());
-    oss << "level: " << level << " gold: " << goldCount << endl;
-    const char* statusText = oss.str().c_str();
-    int textWidth;
-    glyphcache.sizeText(statusText, &textWidth, nullptr);
-    textArea.renderPrint(glyphcache, statusText);
-    for (int i = 0; i < player.health; ++i) {
-      drawHeart(textWidth + 1 + 8*i, 18*8+1);
-    }
-    for (int i = 0; i < npcs.size(); ++i) {
-      Agent& agent = npcs.at(i);
-      if (!paused && gameRunning) {
-        vertex npcCoords = agent.act();
-        vertex playerCoords = vertex(player.tileX, player.tileY);
-        // check for damage
-        bool damageTaken = false;
-        for (int j=0; j < projectiles.size(); ++j) {
-          auto& projectile = projectiles.at(j);
-          vertex projectileCoords = vertex(projectile.tileX, projectile.tileY);
-          if (npcCoords == projectileCoords) {
-            // projectile hit
-            damageTaken = true;
-            agent.takeDamage(projectile);
-            projectiles.erase(projectiles.begin() + j);
-          }
-        }
-        if (player.actions.attacking && !agent.actions.takingDamage) {
-          vertex weaponCoords = player.weaponCoords();
-          if (npcCoords.first == weaponCoords.first
-              && npcCoords.second == weaponCoords.second
-          ) {
-            damageTaken = true;
-            agent.takeDamage(player);
-          }
-        }
-        if (damageTaken) {
-          if (agent.health <= 0) {
-            if (rand() % 100 < 50)
-              makeHeart(agent.tileX, agent.tileY);
-            else 
-              makeGold(agent.tileX, agent.tileY);
-            npcs.erase(npcs.begin() + i);
-            --i;
-            Mix_HaltChannel(1);
-            Mix_PlayChannel(1, soundFx["die"], 0);
-            continue;
-          }
-        }
-        if (agent.ready()) {
-          // move
-          if (rand() % 2 == 0) {
-            if (rand() % 2 == 0) {
-              auto [distance, path] = graph.dijkstra(npcCoords, playerCoords);
-              //int distance = dspResult.first;
-              //list<vertex> path = dspResult.second;
-              if (distance > -1) {
-                path.pop_front();
-                agent.moveToVertex(path.front());
-              }
-            } else {
-              agent.moveRand();
-            }
-          }
-          else {
-            agent.wait(1);
-          }
-        }
-      }
-      agent.draw(gRenderer);
-    }
-    for (auto& item: items) {
-      item.draw(gRenderer);
-    }
-    for (int i=0; i < projectiles.size(); ++i) {
-      auto& projectile = projectiles.at(i);
-      if (!paused && gameRunning) {
-        vertex result = projectile.act();
-        if (result.first == -1) {
-          projectiles.erase(projectiles.begin() + i);
-          --i;
-          continue;
-        }
-      }
-      projectile.draw(gRenderer);
-    }
-    player.draw(gRenderer);
-    if (!gameRunning && player.health == 3) {
-      messageTextArea.printMultilineCenter(
-        glyphcache,
-        vector<string>{
-          " Defend the keep! ",
-          " p - start/pause/resume ",
-          " wasd - move ",
-          " e - sword ",
-          " 1 - throw spear "
-        },
-        tileMatrix.width(),
-        tileMatrix.height()
-      );
-    }
-    else if (paused) {
-      messageTextArea.printCenter(glyphcache, " Paused ", tileMatrix.width(), tileMatrix.height());
-    }
-    else if (!gameRunning) {
-      messageTextArea.printCenter(glyphcache, " Game Over ", tileMatrix.width(), tileMatrix.height());
-    }
+    oss << "work in progress!" << endl;
+    textArea.renderPrint(glyphcache, oss.str().c_str());
+    player.sprite.draw(gRenderer);
     SDL_RenderPresent(gRenderer);
   }
-  SDL_DestroyTexture(dwarf_texture);
-  SDL_DestroyTexture(goblin_texture);
 }
