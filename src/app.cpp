@@ -28,9 +28,11 @@ void App::init() {
   if (!sdl_init(&gWindow, &gRenderer)) throw runtime_error("--sdl_init");
   if (!load_font(&gFont)) throw runtime_error("--load_font");
 }
+
 void App::close() {
   cout << "App::close" << endl;
   TTF_CloseFont(gFont);
+  gFont = nullptr;
   SDL_DestroyRenderer(gRenderer); 
   gRenderer = nullptr;
   SDL_DestroyWindow(gWindow);
@@ -47,8 +49,7 @@ void App::close() {
   }
 }
 
-class TextureContainer {
-public:
+struct TextureContainer {
   map<string, SDL_Texture*> data;
   ~TextureContainer() {
     for (const auto& p: data) {
@@ -76,12 +77,14 @@ SDL_Texture* create_texture(const char* path) {
 void App::mainloop() {
   int actionCooldown(0);
   bool gameRunning(true);
-  TileMatrix tileMatrix("src/test.map");
+  TileMatrix tileMatrix("src/a.map");
   Graph graph(tileMatrix); // <-- graph.dijkstra(vertex, vertex)
                            // returns pair<int distance, list<vertex> path> 
   TextureContainer textureContainer;
   textureContainer.data.emplace("dwarf", create_texture("../assets/dwarf.bmp"));
+  textureContainer.data.emplace("boy", create_texture("../assets/boy.bmp"));
   textureContainer.data.emplace("goblin", create_texture("../assets/goblin.bmp"));
+  textureContainer.data.emplace("skelet", create_texture("../assets/skelet.bmp"));
   textureContainer.data.emplace("items", create_texture("../assets/items.bmp"));
   textureContainer.data.emplace("stone", create_texture("../assets/stone.bmp"));
   auto drawStone = [&textureContainer](int x, int y){
@@ -130,54 +133,141 @@ void App::mainloop() {
     0,0,
     100, 100,
     Stats(),
-    textureContainer.data["dwarf"], 
+    textureContainer.data["boy"], 
     tileMatrix,
     map<Direction, SDL_Rect>{
       {UP,    SDL_Rect{0,0,8,8}},
-      {DOWN,  SDL_Rect{16,0,8,8}},
-      {LEFT,  SDL_Rect{32,0,8,8}},
-      {RIGHT, SDL_Rect{48,0,8,8}}
+      {DOWN,  SDL_Rect{0,8,8,8}},
+      {LEFT,  SDL_Rect{0,8,8,8}},
+      {RIGHT, SDL_Rect{0,0,8,8}}
   });
+  vector<Enemy> enemies;
+  for (int i=0; i < 5; ++i) {
+    enemies.emplace_back(
+      "skelet",
+      6+i,8,
+      100, 100,
+      Stats(),
+      textureContainer.data["skelet"], 
+      tileMatrix,
+      map<Direction, SDL_Rect>{
+        {UP,    SDL_Rect{0,0,8,8}},
+        {DOWN,  SDL_Rect{0,8,8,8}},
+        {LEFT,  SDL_Rect{0,8,8,8}},
+        {RIGHT, SDL_Rect{0,0,8,8}}
+    });
+  }
   SDL_Event e;
   bool quit {false};
 
   while (!quit) {
     if (actionCooldown == 0) {
+      bool playerMoved {false};
+      bool playerAttacked {false};
+      bool moveAttempt {false};
+      Direction inputDir;
       while (SDL_PollEvent(&e) != 0) {
+        moveAttempt = false;
         if (e.type == SDL_QUIT) {
           quit = true;
         }
-        bool playerMoved {false};
         if(e.type == SDL_KEYDOWN && e.key.repeat == 0) {
           switch(e.key.keysym.sym) {
             case SDLK_w:
-              playerMoved = player.sprite.move(UP);
+              inputDir = UP;
+              moveAttempt = true;
               break;
             case SDLK_a:
-              playerMoved = player.sprite.move(LEFT);
+              inputDir = LEFT;
+              moveAttempt = true;
               break;
             case SDLK_s:
-              playerMoved = player.sprite.move(DOWN);
+              inputDir = DOWN;
+              moveAttempt = true;
               break;
             case SDLK_d:
-              playerMoved = player.sprite.move(RIGHT);
-              break;
-            case SDLK_e:
-              break;
-            case SDLK_p:
-              break;
-            case SDLK_1:
+              inputDir = RIGHT;
+              moveAttempt = true;
               break;
           }
         }
-        if (playerMoved) {
+        if (moveAttempt) {
+          // determine if attacking adjacent enemy
+          player.sprite.face(inputDir);
+          vertex facing = player.sprite.getTileFacing();
+          auto target = find_if(
+              enemies.begin(), enemies.end(),
+              [&facing](const Enemy& e){ return e.coords() == facing; }
+          );
+          if (target != enemies.end()) {
+            // player is attacking adjacent enemy
+            playerAttacked = true;
+            player.attack(*target);
+            cout << "player attacks " << (*target).name << (*target).id << endl;
+            // execute enemy attacks and movements
+            for (auto& enemy: enemies) {
+              // if enemy is adjacent (nearest path length == 1) to player
+              // attack player
+              auto dspResult = graph.dijkstra(enemy.coords(), player.coords());
+              if (dspResult.first == 1) {
+                enemy.attack(player);
+                cout << enemy.name << enemy.id << " attacks player" << endl;
+              }
+              // move towards player
+              else if (dspResult.first < 20 && dspResult.first > -1 /* && rand() % 4 */) {
+                dspResult.second.pop_front();
+                cout << "dsp: enemy " << enemy.id << " moving to " << dspResult.second.front().first << ","
+                     << dspResult.second.front().second << endl;
+                enemy.sprite.moveToTile(dspResult.second.front());
+              }
+            }
+          }
+          else {
+            // player is moving into open square
+            // execute enemy attacks
+            map<int, bool> enemyAttacked;
+            for (auto& enemy: enemies) {
+              // if enemy is adjacent (nearest path length == 1) to player
+              // attack player
+              auto dspResult = graph.dijkstra(enemy.coords(), player.coords());
+              if (dspResult.first == 1) {
+                enemy.attack(player);
+                cout << enemy.name << enemy.id << " attacks player" << endl;
+                enemyAttacked.emplace(enemy.id, true);
+              }
+            }
+            playerMoved = player.sprite.move(inputDir);
+            // execute enemy movements
+            for (auto& enemy: enemies) {
+              if (enemyAttacked.count(enemy.id)) continue;
+              // if in aggro range of player (nearest path length < 4)
+              //      randselect(move towards player, move random dir)
+              //      if target location is occupied by other player, do nothing
+              auto dspResult = graph.dijkstra(enemy.coords(), player.coords());
+              if (dspResult.first < 20 && dspResult.first > -1 /* && rand() % 4 */) {
+                dspResult.second.pop_front();
+                cout << "dsp: enemy " << enemy.id << " moving to " << dspResult.second.front().first << ","
+                     << dspResult.second.front().second << endl;
+                enemy.sprite.moveToTile(dspResult.second.front());
+              } else {
+                //enemy.sprite.moveRand();
+              }
+            }
+          }
+        }
+        if (playerMoved || playerAttacked) {
           actionCooldown = 8;
+        }
+        if (playerMoved) {
           tileMatrix.updateVisibilityMap(player.coords());
         }
       }
     } else {
       // action cooldown, location updates
       player.sprite.advanceAnimation(actionCooldown);
+      for (auto& enemy: enemies) {
+        enemy.sprite.advanceAnimation(actionCooldown);
+      }
       --actionCooldown;
     }
     // render player and map // should be handled by TileMatrix
@@ -209,9 +299,15 @@ void App::mainloop() {
     }
     textArea.drawRect();
     oss.str(string());
-    oss << "work in progress!" << endl;
+    oss << player.sprite.tileX << ", " << player.sprite.tileY << " | "
+        << enemies.at(0).sprite.tileX << "," << enemies.at(0).sprite.tileY << " | "
+        << enemies.at(1).sprite.tileX << "," << enemies.at(1).sprite.tileY << endl;
     textArea.renderPrint(glyphcache, oss.str().c_str());
+    for (auto& enemy : enemies) {
+      enemy.sprite.draw(gRenderer);
+    }
     player.sprite.draw(gRenderer);
     SDL_RenderPresent(gRenderer);
   }
 }
+

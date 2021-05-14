@@ -25,6 +25,13 @@ TileMatrix::TileMatrix(const string& filename) {
       data[counter].push_back(x);
     }
   }
+  // populate occupied map
+  for (int h = 0; h < data.size(); ++h) {
+    for (int w = 0; w < data.at(h).size(); ++w) {
+      occupiedMap.emplace(vertex(w,h), NONE);
+    }
+  }
+  occupiedMap.emplace(vertex(-1,-1), NONE); // void tile
 }
 
 list<vertex> TileMatrix::bresenham(const vertex& p1, const vertex& p2) {
@@ -154,6 +161,17 @@ list<vertex> TileMatrix::updateVisibilityMap(vertex playerCoords) {
   return result; // testing
 }
 
-bool TileMatrix::isVisibleTile(const vertex& vrt) {
+bool TileMatrix::isVisibleTile(const vertex& vrt) const {
   return !(shadowMap.count(vrt) && shadowMap.at(vrt));
 }
+
+bool TileMatrix::isOccupiedTile(const vertex& tile) const {
+  return (occupiedMap.count(tile) && occupiedMap.at(tile) != NONE);
+}
+
+void TileMatrix::registerMovement(vertex from, vertex to, AgentType type) const {
+  occupiedMap[from] = NONE;
+  occupiedMap[to] = type;
+}
+
+

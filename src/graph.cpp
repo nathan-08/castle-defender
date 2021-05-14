@@ -12,12 +12,10 @@
 using namespace std;
 
 Graph::Graph(const TileMatrix& tm) {
-  auto getTileCode = [tm](int x, int y){
-    return tm.data.at(y).at(x);
-  };
-  auto isValidCoord = [&tm, &getTileCode](int x, int y) {
-    bool result = tm.isTraversableTile(vertex(x,y));
-    return result;
+  auto isValidCoord = [&tm](int x, int y) {
+    bool isTraversable = tm.isTraversableTile(vertex(x,y));
+    // is unoccupied by other enemies
+    return isTraversable;
   };
 
   for (int y = 0; y < tm.data.size(); ++y) {
@@ -38,6 +36,7 @@ Graph::Graph(const TileMatrix& tm) {
     if (isValidCoord(x,y+1)) vwList.emplace_back(vertex(x,y+1), 1);
   }
 }
+
 void Graph::addEdge(vertex srcId, vertex destId, int weight) {
   adjLists[srcId].emplace_back(destId, weight);
   adjLists[destId].emplace_back(srcId, weight); // (non directional graph)

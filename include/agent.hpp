@@ -7,6 +7,7 @@
 #include "TileMatrix.hpp"
 #include "sprite.hpp"
 #include "vertex.hpp"
+#include "AgentType.hpp"
 
 struct Stats {};
 struct EquippedItems {};
@@ -17,7 +18,8 @@ private:
 protected: // abstract base class
   Agent(
       std::string nm, int tX, int tY, int mxHp, int mxMp, Stats stats,
-      SDL_Texture* txtr, const TileMatrix& tileMtrx, std::map<Direction, SDL_Rect> srcRects
+      SDL_Texture* txtr, const TileMatrix& tileMtrx, std::map<Direction, SDL_Rect> srcRects,
+      AgentType agntType
   );
 public:
   int id;

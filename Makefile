@@ -14,19 +14,19 @@ app.o: app.cpp app.hpp direction.hpp TextManager.hpp agent.hpp Graph.hpp TileMat
 init.o: init.cpp init.hpp const.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
-agent.o: agent.cpp agent.hpp direction.hpp sprite.hpp vertex.hpp
+agent.o: agent.cpp agent.hpp direction.hpp sprite.hpp vertex.hpp AgentType.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 textManager.o: TextManager.cpp TextManager.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
-tileMatrix.o: TileMatrix.cpp TileMatrix.hpp
+tileMatrix.o: TileMatrix.cpp TileMatrix.hpp vertex.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 graph.o: graph.cpp Graph.hpp priorityQueue.hpp TileMatrix.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
-sprite.o: sprite.cpp sprite.hpp vertex.hpp direction.hpp
+sprite.o: sprite.cpp sprite.hpp vertex.hpp direction.hpp AgentType.hpp
 	$(COMPILER) -c $< $(INCLUDE)
 
 vpath %.cpp src

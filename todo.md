@@ -1,5 +1,6 @@
 mainloop
 
+include enemy coords in graph pathfinding
 if (actionCooldown == 0) {
   // ready for input
   if (actionInput) {
